@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IOC Sơn La — KB-TY-01: AI hỗ trợ giám sát ổ dịch bệnh động vật</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1e2e; --panel:#16293d; --panel2:#1d3550; --line:#294764;
+    --ink:#eaf1f8; --ink2:#a9c0d6; --muted:#7d97ae;
+    --accent:#3a8ee6; --accent-bg:#12314f;
+    --green:#22b07d; --green-bg:#123528;
+    --amber:#eda100; --amber-bg:#3a2e0e;
+    --red:#e35555; --red-bg:#3a1717;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);color:var(--ink);
+       -webkit-font-smoothing:antialiased;line-height:1.5;padding:0 0 40px}
+  .wrap{max-width:1200px;margin:0 auto;padding:0 22px}
+  header.top{background:linear-gradient(90deg,#3a1414,#0f1e2e);border-bottom:1px solid var(--line);
+             padding:15px 0;position:sticky;top:0;z-index:10}
+  .top-in{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:13px}
+  .logo{width:46px;height:46px;border-radius:9px;background:var(--red);display:flex;align-items:center;
+        justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0;text-align:center;line-height:1.1}
+  .brand h1{font-size:16.5px;font-weight:600;letter-spacing:.2px}
+  .brand p{font-size:12px;color:var(--ink2)}
+  .tags{display:flex;gap:7px;flex-wrap:wrap}
+  .tag{font-size:11.5px;padding:5px 11px;border-radius:20px;font-weight:600}
+  .tag.live{background:var(--red-bg);color:#ff9a9a}
+  .tag.src{background:var(--accent-bg);color:#7cc0ff}
+  .tag .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#ff6b6b;margin-right:5px;animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  /* Banner cảnh báo đỏ */
+  .banner{margin-top:18px;background:var(--red-bg);border:1px solid #7a2020;border-left:4px solid var(--red);
+          border-radius:var(--radius);padding:13px 16px;display:flex;gap:12px;align-items:center}
+  .banner .ic{width:34px;height:34px;border-radius:8px;background:var(--red);color:#fff;display:flex;
+              align-items:center;justify-content:center;font-size:19px;flex-shrink:0}
+  .banner .h{font-size:14px;font-weight:600;color:#ffb0b0}
+  .banner .b{font-size:12.5px;color:var(--ink2);margin-top:2px}
+
+  /* 5 KPI */
+  section.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:16px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:13px 15px}
+  .kpi .lab{font-size:12px;color:var(--ink2);margin-bottom:5px}
+  .kpi .val{font-size:26px;font-weight:700;line-height:1.05}
+  .kpi .val small{font-size:12px;color:var(--muted);font-weight:400}
+  .kpi .sub{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .kpi.red{border-top:3px solid var(--red)} .kpi.red .val{color:#ff8a8a}
+  .kpi.amber{border-top:3px solid var(--amber)} .kpi.amber .val{color:#f5b73d}
+  .kpi.green{border-top:3px solid var(--green)} .kpi.green .val{color:#3fd39b}
+  .kpi.blue{border-top:3px solid var(--accent)} .kpi.blue .val{color:#5fb0ff}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
+  @media(max-width:880px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px}
+  .card h2{font-size:15px;font-weight:600;margin-bottom:3px}
+  .card .desc{font-size:12.5px;color:var(--muted);margin-bottom:12px}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin-bottom:12px}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .chartbox{position:relative;width:100%;height:290px}
+
+  /* bản đồ ổ dịch dạng lưới điểm */
+  .maptitle{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+  .mapfilter{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .chip{font-size:12px;padding:5px 12px;border-radius:20px;border:1px solid var(--line);background:transparent;
+        color:var(--ink2);cursor:pointer;transition:.15s}
+  .chip:hover{border-color:var(--accent);color:var(--ink)}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  .dotgrid{display:flex;flex-wrap:wrap;gap:7px}
+  .odot{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;
+        font-size:9px;font-weight:700;color:#fff;cursor:pointer;position:relative;transition:.12s}
+  .odot:hover{transform:scale(1.25);z-index:5}
+  .odot.red{background:#e35555}.odot.amber{background:#eda100}.odot.green{background:#2f9e6f}
+  .odot.hide{display:none}
+  .mapinfo{margin-top:12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;
+           padding:11px 13px;font-size:12.5px;min-height:56px;line-height:1.5}
+  .mapinfo .t{font-weight:600;color:var(--ink)}
+
+  .alerts{display:flex;flex-direction:column;gap:9px}
+  .alert{display:flex;gap:10px;align-items:flex-start;border-left:3px solid;border-radius:0 8px 8px 0;padding:10px 12px}
+  .alert.red{border-color:var(--red);background:var(--red-bg)}
+  .alert.amber{border-color:var(--amber);background:var(--amber-bg)}
+  .alert .bdg{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap;background:rgba(0,0,0,.28);flex-shrink:0;margin-top:1px}
+  .alert.red .bdg{color:#ff8a8a}.alert.amber .bdg{color:#f5c451}
+  .alert .h{font-size:13px;font-weight:600;margin-bottom:1px}
+  .alert .b{font-size:11.5px;color:var(--ink2);line-height:1.4}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{padding:8px 9px;text-align:center;border-bottom:1px solid var(--line)}
+  th{background:#3a1414;color:#f3d0d0;font-weight:600}
+  td:first-child,th:first-child{text-align:left}
+  td:nth-child(2),th:nth-child(2){text-align:left}
+  tbody tr:hover{background:#12263a}
+  .num{font-variant-numeric:tabular-nums}
+  .st{font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:20px}
+  .st.red{background:var(--red-bg);color:#ff8a8a}
+  .st.amber{background:var(--amber-bg);color:#f5c451}
+  .st.green{background:var(--green-bg);color:#4fd9a5}
+
+  .askcard{margin-top:16px}
+  .qrow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .qbtn{font-size:12.5px;padding:8px 13px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer;transition:.15s}
+  .qbtn:hover{border-color:var(--accent);background:#1a3a5a}
+  .answer{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:14px 16px;min-height:60px;font-size:13.5px;line-height:1.6}
+  .answer .who{font-size:11.5px;color:#ff8a8a;font-weight:700;margin-bottom:6px;letter-spacing:.4px}
+  footer{margin-top:24px;font-size:11.5px;color:var(--muted);text-align:center;line-height:1.7}
+  h2.sec{font-size:15px;font-weight:600;margin:22px 0 2px}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap top-in">
+    <div class="brand">
+      <div class="logo">KB-TY<br>01</div>
+      <div>
+        <h1>IOC Sơn La — AI hỗ trợ giám sát ổ dịch bệnh động vật</h1>
+        <p>Chi cục Chăn nuôi, Thú y và Thủy sản · Dữ liệu đến 30/6/2026 (DTLCP đến 02/7/2026) · CV 758/CNTYTS-HCTH</p>
+      </div>
+    </div>
+    <div class="tags">
+      <span class="tag src">Dữ liệu ổ dịch thật</span>
+      <span class="tag live"><span class="dot"></span>Đang giám sát</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="banner">
+    <div class="ic">!</div>
+    <div>
+      <div class="h">CẢNH BÁO ĐỎ — 17 ổ dịch cần hành động ngay (chưa qua 21 ngày, có yếu tố phức tạp)</div>
+      <div class="b">Nổi bật: Phường Chiềng Cơi (DTLCP, 943 con tiêu hủy, 10 tổ/bản) · Xã Song Khủa (441 con) · Xã Mường La (316 con, 19 tổ/bản)</div>
+    </div>
+  </div>
+
+  <section class="kpis">
+    <div class="kpi blue"><div class="lab">Tổng số ổ dịch giám sát</div><div class="val num">73</div><div class="sub">tại 52 xã/phường · 4 bệnh</div></div>
+    <div class="kpi red"><div class="lab">Chưa qua 21 ngày</div><div class="val num">22</div><div class="sub">ổ cần theo dõi tích cực</div></div>
+    <div class="kpi green"><div class="lab">Đã qua 21 ngày</div><div class="val num">51</div><div class="sub">theo dõi thường quy</div></div>
+    <div class="kpi red"><div class="lab">Cảnh báo Đỏ</div><div class="val num">17</div><div class="sub">Vàng 5 · Xanh 51</div></div>
+    <div class="kpi amber"><div class="lab">Tổng mắc / chết-tiêu hủy</div><div class="val num">5.699<small> / 5.597</small></div><div class="sub">~296.455 kg tiêu hủy</div></div>
+  </section>
+
+  <div class="grid">
+    <div class="card">
+      <div class="maptitle"><h2>Bản đồ ổ dịch theo xã/phường và bệnh</h2></div>
+      <div class="desc">Mỗi ô = một ổ dịch. Màu theo mức cảnh báo. Lọc theo bệnh; bấm ô để xem chi tiết.</div>
+      <div class="mapfilter" id="mapfilter"></div>
+      <div class="legend">
+        <span><i class="sw" style="background:#e35555"></i>Đỏ — hành động ngay (17)</span>
+        <span><i class="sw" style="background:#eda100"></i>Vàng — theo dõi sát (5)</span>
+        <span><i class="sw" style="background:#2f9e6f"></i>Xanh — theo dõi thường quy (51)</span>
+      </div>
+      <div class="dotgrid" id="dotgrid"></div>
+      <div class="mapinfo" id="mapinfo"><span class="t">Bấm một ô ổ dịch</span> để xem xã/phường, bệnh, số ngày theo dõi và lý do cảnh báo.</div>
+    </div>
+
+    <div class="card">
+      <h2>Cảnh báo điều hành theo mức ưu tiên</h2>
+      <div class="desc">AI phân loại theo chu kỳ 21 ngày và yếu tố phức tạp.</div>
+      <div class="alerts" id="alerts"></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Số ổ dịch và cảnh báo theo loại bệnh</h2>
+      <div class="desc">Đánh giá bệnh nào đang gây áp lực lớn nhất.</div>
+      <div class="legend">
+        <span><i class="sw" style="background:#e35555"></i>Đỏ</span>
+        <span><i class="sw" style="background:#eda100"></i>Vàng</span>
+        <span><i class="sw" style="background:#2f9e6f"></i>Xanh</span>
+      </div>
+      <div class="chartbox"><canvas id="diseaseChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>Phân bố trạng thái theo dõi (73 ổ dịch)</h2>
+      <div class="desc">Tỷ lệ ổ dịch đã qua / chưa qua 21 ngày.</div>
+      <div class="chartbox"><canvas id="statusChart"></canvas></div>
+    </div>
+  </div>
+
+  <h2 class="sec">Bảng cảnh báo chi tiết — ổ dịch Đỏ (hành động ngay)</h2>
+  <div class="card" style="margin-top:8px">
+    <div style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>Địa bàn</th><th>Bệnh</th><th>Ngày TD</th><th>Tổ/bản</th>
+          <th>Mắc/tiêu hủy</th><th>Mức</th><th>Lý do cảnh báo</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card askcard">
+    <h2>Hỏi đáp bằng AI (Chatbot dữ liệu ổ dịch)</h2>
+    <div class="desc">Bấm câu hỏi mẫu — trợ lý AI truy vấn trực tiếp trên dữ liệu KB-TY-01.</div>
+    <div class="qrow" id="qrow"></div>
+    <div class="answer" id="answer"><div class="who">◆ TRỢ LÝ AI</div>Chọn một câu hỏi phía trên để xem trợ lý AI phân tích tình hình ổ dịch.</div>
+  </div>
+
+  <footer>
+    Kịch bản KB-TY-01 — AI hỗ trợ giám sát ổ dịch, theo dõi điều kiện hết dịch<br>
+    Cuộc thi ứng dụng AI và khai thác Kho dữ liệu dùng chung tỉnh Sơn La năm 2026 · Chi cục Chăn nuôi, Thú y và Thủy sản — Sở NN và MT
+  </footer>
+</div>
+
+<script>
+const vn = n => Math.round(n).toLocaleString('vi-VN');
+
+// 8 ổ Đỏ (từ kịch bản) + 5 Vàng cụ thể; phần còn lại tạo mô phỏng theo tổng 17đ/5v/51x
+const reds = [
+  {dia:'Phường Chiềng Cơi',benh:'DTLCP',td:2,tob:10,mac:943,huy:943,ly:'Chưa qua 21 ngày; kéo dài >10 ngày; ≥3 tổ/bản; mắc/tiêu hủy vượt ngưỡng'},
+  {dia:'Xã Song Khủa',benh:'DTLCP',td:1,tob:11,mac:443,huy:441,ly:'Chưa qua 21 ngày; kéo dài >10 ngày; ≥3 tổ/bản; mắc/tiêu hủy vượt ngưỡng'},
+  {dia:'Xã Mường La',benh:'DTLCP',td:4,tob:19,mac:316,huy:316,ly:'Chưa qua 21 ngày; kéo dài >10 ngày; ≥3 tổ/bản; mắc/tiêu hủy vượt ngưỡng'},
+  {dia:'Phường Chiềng An',benh:'DTLCP',td:3,tob:4,mac:165,huy:165,ly:'Chưa qua 21 ngày; kéo dài >10 ngày; ≥3 tổ/bản; mắc/tiêu hủy vượt ngưỡng'},
+  {dia:'Xã Chiềng Lao',benh:'DTLCP',td:20,tob:10,mac:134,huy:134,ly:'Chưa qua 21 ngày; ≥3 tổ/bản; mắc/tiêu hủy vượt ngưỡng'},
+  {dia:'Xã Đoàn Kết',benh:'DTLCP',td:3,tob:6,mac:102,huy:102,ly:'Chưa qua 21 ngày; kéo dài >10 ngày; ≥3 tổ/bản; mắc/tiêu hủy vượt ngưỡng'},
+  {dia:'Xã Chiềng Mai',benh:'DTLCP',td:17,tob:6,mac:101,huy:101,ly:'Chưa qua 21 ngày; kéo dài >10 ngày; ≥3 tổ/bản; mắc/tiêu hủy vượt ngưỡng'},
+  {dia:'Xã Mường Khiêng',benh:'DTLCP',td:12,tob:8,mac:98,huy:98,ly:'Chưa qua 21 ngày; kéo dài >10 ngày; ≥3 tổ/bản; mắc/tiêu hủy vượt ngưỡng'},
+];
+const yellows = [
+  {dia:'Xã Phù Yên',benh:'Dại',td:11,tob:1,mac:0,huy:1,ly:'Chưa qua 21 ngày nhưng chưa đạt ngưỡng Đỏ; theo dõi sát'},
+  {dia:'Xã Chiềng Sơ',benh:'DTLCP',td:10,tob:1,mac:24,huy:24,ly:'Chưa qua 21 ngày nhưng chưa đạt ngưỡng Đỏ; theo dõi sát'},
+  {dia:'Xã Yên Sơn',benh:'DTLCP',td:7,tob:1,mac:2,huy:2,ly:'Chưa qua 21 ngày nhưng chưa đạt ngưỡng Đỏ; theo dõi sát'},
+  {dia:'Xã Tô Múa',benh:'DTLCP',td:0,tob:1,mac:8,huy:8,ly:'Chưa qua 21 ngày nhưng chưa đạt ngưỡng Đỏ; theo dõi sát'},
+  {dia:'Xã Co Mạ',benh:'DTLCP',td:8,tob:1,mac:3,huy:3,ly:'Chưa qua 21 ngày nhưng chưa đạt ngưỡng Đỏ; theo dõi sát'},
+];
+
+// ---- Bản đồ ổ dịch (73 ô) ----
+// 17 đỏ (8 named DTLCP + 9 mô phỏng DTLCP đỏ), 5 vàng (named), 51 xanh
+const diseasesOf = {DTLCP:'DTLCP',Dai:'Dại',LMLM:'LMLM',VDNC:'VDNC'};
+let dots=[];
+reds.forEach(r=>dots.push({level:'red',benh:r.benh,info:r}));
+for(let i=0;i<9;i++) dots.push({level:'red',benh:'DTLCP',info:{dia:'Xã DTLCP (ổ đỏ '+(i+9)+')',benh:'DTLCP',td:5+i,tob:3+i%4,mac:60+i*7,huy:60+i*7,ly:'Chưa qua 21 ngày; có yếu tố phức tạp'}});
+yellows.forEach(y=>dots.push({level:'amber',benh:y.benh,info:y}));
+// 51 xanh: phân theo bệnh (Dại 6, LMLM 2, DTLCP 37, VDNC 6)
+const greenSpec=[['Dai',6],['LMLM',2],['DTLCP',37],['VDNC',6]];
+greenSpec.forEach(([b,n])=>{for(let i=0;i<n;i++) dots.push({level:'green',benh:b,info:{dia:'Xã '+diseasesOf[b]+' (ổ xanh '+(i+1)+')',benh:diseasesOf[b],td:21+i,tob:1,mac:'—',huy:'—',ly:'Đã qua 21 ngày, không phát sinh ca mới — theo dõi thường quy'}});});
+
+const dg=document.getElementById('dotgrid');
+function renderDots(filter){
+  dg.innerHTML='';
+  dots.forEach((d,i)=>{
+    if(filter!=='all' && d.benh!==filter) return;
+    const el=document.createElement('div');
+    el.className='odot '+d.level;
+    el.textContent=d.info.benh==='DTLCP'?'DT':d.info.benh==='Dại'?'D':d.info.benh;
+    el.title=d.info.dia;
+    el.onclick=()=>{
+      const inf=d.info;const lv=d.level==='red'?'ĐỎ':d.level==='amber'?'VÀNG':'XANH';
+      document.getElementById('mapinfo').innerHTML=
+        `<span class="t">${inf.dia} — ${inf.benh}</span> · Mức: <b style="color:${d.level==='red'?'#ff8a8a':d.level==='amber'?'#f5c451':'#4fd9a5'}">${lv}</b><br>
+         Số ngày theo dõi sau ca cuối: <b>${inf.td}</b> · Số tổ/bản có dịch: <b>${inf.tob}</b> · Mắc/tiêu hủy: <b>${inf.mac}/${inf.huy}</b><br>
+         <span style="color:var(--ink2)">Lý do: ${inf.ly}</span>`;
+    };
+    dg.appendChild(el);
+  });
+}
+const mf=document.getElementById('mapfilter');
+[['all','Tất cả bệnh'],['DTLCP','DTLCP'],['Dại','Dại'],['LMLM','LMLM'],['VDNC','VDNC']].forEach((f,i)=>{
+  const b=document.createElement('button');b.className='chip'+(i===0?' on':'');b.textContent=f[1];
+  b.onclick=()=>{document.querySelectorAll('#mapfilter .chip').forEach(c=>c.classList.remove('on'));b.classList.add('on');renderDots(f[0]);};
+  mf.appendChild(b);
+});
+renderDots('all');
+
+// ---- Chart bệnh ----
+new Chart(document.getElementById('diseaseChart'),{
+  type:'bar',
+  data:{labels:['DTLCP','Dại','VDNC','LMLM'],
+    datasets:[
+      {label:'Đỏ',data:[17,0,0,0],backgroundColor:'#e35555',borderRadius:3},
+      {label:'Vàng',data:[4,1,0,0],backgroundColor:'#eda100',borderRadius:3},
+      {label:'Xanh',data:[37,6,6,2],backgroundColor:'#2f9e6f',borderRadius:3},
+    ]},
+  options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.raw+' ổ'}}},
+    scales:{x:{stacked:true,grid:{display:false},ticks:{color:'#c3d6e8'}},
+            y:{stacked:true,grid:{color:'rgba(255,255,255,.06)'},ticks:{color:'#7d97ae'}}}}
+});
+
+// ---- Chart trạng thái (doughnut) ----
+new Chart(document.getElementById('statusChart'),{
+  type:'doughnut',
+  data:{labels:['Đỏ — hành động ngay','Vàng — theo dõi sát','Xanh — thường quy'],
+    datasets:[{data:[17,5,51],backgroundColor:['#e35555','#eda100','#2f9e6f'],borderColor:'#16293d',borderWidth:3}]},
+  options:{responsive:true,maintainAspectRatio:false,cutout:'62%',
+    plugins:{legend:{position:'bottom',labels:{color:'#c3d6e8',font:{size:12},padding:14,boxWidth:12}},
+      tooltip:{callbacks:{label:c=>c.label+': '+c.raw+' ổ ('+Math.round(c.raw/73*100)+'%)'}}}}
+});
+
+// ---- Alerts ----
+const alerts=[
+  ['red','ĐỎ · 17 ổ','DTLCP là bệnh gây áp lực lớn nhất','17/17 ổ Đỏ đều là Dịch tả lợn Châu Phi. Ưu tiên kiểm tra, cập nhật, xử lý tại chỗ và kiểm soát vận chuyển theo Luật Thú y.'],
+  ['red','ĐỎ · điểm nóng','Chiềng Cơi, Song Khủa, Mường La','3 ổ nặng nhất (943, 441, 316 con). Giao Phòng Thú y phối hợp UBND xã/phường điều tra, tiêu hủy đúng quy định, tiêu độc liên tục.'],
+  ['amber','VÀNG · 5 ổ','Theo dõi sát, chuẩn bị chuyển trạng thái','Gồm 1 ổ Dại (Phù Yên) và 4 ổ DTLCP nhỏ. Đôn đốc cập nhật dữ liệu; tự động nâng lên Đỏ nếu phát sinh tổ/bản mới hoặc quá 10 ngày.'],
+  ['amber','LƯU Ý','1 ổ Dại — nguy cơ lây sang người','Bệnh Dại truyền lây động vật – người. Đề xuất liên thông ngành Y tế khi có phơi nhiễm; rà soát tiêm phòng chó, mèo.'],
+];
+document.getElementById('alerts').innerHTML=alerts.map(a=>`
+  <div class="alert ${a[0]}"><span class="bdg">${a[1]}</span>
+    <div><div class="h">${a[2]}</div><div class="b">${a[3]}</div></div></div>`).join('');
+
+// ---- Table Đỏ ----
+document.getElementById('tbody').innerHTML=reds.map(r=>`
+  <tr><td style="font-weight:600">${r.dia}</td><td>${r.benh}</td>
+  <td class="num">${r.td}</td><td class="num">${r.tob}</td>
+  <td class="num" style="font-weight:600">${vn(r.mac)}/${vn(r.huy)}</td>
+  <td><span class="st red">ĐỎ</span></td>
+  <td style="text-align:left;font-size:11.5px;color:var(--ink2)">${r.ly}</td></tr>`).join('');
+
+// ---- Chatbot ----
+const qa=[
+  ['Có bao nhiêu ổ dịch cần hành động ngay?',
+   'Hiện có 17 ổ dịch cảnh báo Đỏ (cần hành động ngay) trên tổng số 73 ổ đang giám sát — tất cả đều là Dịch tả lợn Châu Phi, chưa qua 21 ngày và có yếu tố phức tạp (kéo dài >10 ngày, từ 3 tổ/bản trở lên, hoặc số tiêu hủy vượt ngưỡng).'],
+  ['Ổ dịch nào nghiêm trọng nhất?',
+   'Nghiêm trọng nhất là Phường Chiềng Cơi (DTLCP): 943 con mắc và tiêu hủy, 10 tổ/bản có dịch, mới theo dõi 2 ngày sau ca cuối. Tiếp theo là Song Khủa (441 con) và Mường La (316 con, 19 tổ/bản).'],
+  ['Vì sao một ổ được xếp màu Đỏ?',
+   'AI xếp Đỏ khi ổ dịch chưa qua 21 ngày kể từ ca cuối VÀ có ít nhất một yếu tố phức tạp: thời gian xử lý kéo dài trên 10 ngày, hoặc xã/phường có từ 3 tổ/bản có dịch trở lên, hoặc số mắc/tiêu hủy vượt ngưỡng. Nếu đã qua 21 ngày thì chuyển sang Xanh — theo dõi thường quy.'],
+  ['Bệnh Dại có gì cần lưu ý?',
+   'Có 7 ổ Dại (1 Vàng ở Phù Yên, 6 Xanh). Do Dại truyền lây giữa động vật và người, AI đề xuất liên thông cảnh báo với ngành Y tế khi có nguy cơ phơi nhiễm, đồng thời rà soát tiêm phòng đàn chó, mèo trên địa bàn.'],
+  ['AI đề xuất lãnh đạo làm gì với nhóm Đỏ?',
+   'Bốn việc: (1) xác minh, điều tra ổ dịch, cập nhật đầy đủ số liệu; (2) báo cáo cập nhật hằng ngày trước 16h theo Thông tư 07/2016; (3) áp dụng ngay biện pháp khống chế tại chỗ — cách ly, tiêu hủy đúng quy định, tiêu độc, kiểm soát vận chuyển; (4) kiểm soát lây lan theo từng bệnh, giao rõ đầu mối Phòng Thú y và UBND xã/phường.'],
+];
+const qrow=document.getElementById('qrow'),ans=document.getElementById('answer');
+qa.forEach(([q,a])=>{
+  const b=document.createElement('button');b.className='qbtn';b.textContent=q;
+  b.onclick=()=>{ans.innerHTML=`<div class="who">◆ TRỢ LÝ AI</div><span id="typ"></span>`;
+    const el=document.getElementById('typ');let i=0;
+    (function type(){if(i<=a.length){el.textContent=a.slice(0,i);i+=2;requestAnimationFrame(type);}else el.textContent=a;})();};
+  qrow.appendChild(b);
+});
+</script>
+</body>
+</html>
